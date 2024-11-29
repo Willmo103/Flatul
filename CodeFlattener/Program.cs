@@ -1,14 +1,5 @@
-﻿using System;
-using System.ComponentModel;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+﻿using LibGit2Sharp;
 using Microsoft.Extensions.Configuration;
-using Newtonsoft.Json;
-using LibGit2Sharp;
-using System.Text.RegularExpressions;
-using Markdig;
-using YamlDotNet.Serialization;
 
 namespace CodeFlattener
 {
@@ -139,30 +130,9 @@ Examples:
 
         private static string DetermineLanguageFromExtension(string filter)
         {
-            return filter.ToLower() switch
-            {
-                "*.cs" => "csharp",
-                "*.py" => "python",
-                "*.js" => "javascript",
-                "*.ts" => "typescript",
-                "*.java" => "java",
-                "*.cpp" => "cpp",
-                "*.c" => "c",
-                "*.go" => "go",
-                "*.rb" => "ruby",
-                "*.php" => "php",
-                "*.rs" => "rust",
-                "*.swift" => "swift",
-                "*.kt" => "kotlin",
-                "*.scala" => "scala",
-                "*.r" => "r",
-                "*.md" => "markdown",
-                "*.html" => "html",
-                "*.xml" => "xml",
-                "*.json" => "json",
-                "*.yaml" or "*.yml" => "yaml",
-                _ => "plaintext"
-            };
+            // Remove the * from the filter to get just the extension
+            string extension = filter.StartsWith("*") ? filter.Substring(1) : filter;
+            return FileHelper.GetLanguageIdentifier(extension);
         }
 
         private static CommandLineOptions? ParseCommandLineArguments(string[] args)
