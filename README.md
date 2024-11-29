@@ -1,6 +1,6 @@
 # FlaTül (Experimental Version)
 
-This project is an experimental version of the original [RepoScribe](https://github.com/your-username/RepoScribe) codebase. The code for this experimental version is based on the release version 2.2.0 of RepoScribe.
+This project is an experimental version of the original [RepoScribe](https://github.com/willmo103/RepoScribe) codebase. The code for this experimental version is based on the release version 2.2.0 of RepoScribe.
 
 ## Purpose
 
@@ -10,7 +10,7 @@ The purpose of this experimental version is to create a new personal experiment 
 
 To get started with this experimental version, follow these steps:
 
-1. Clone the repository: `git clone https://github.com/your-username/RepoScribe-experimental.git`
+1. Clone the repository: `git clone https://git.willmo.dev/willmo103/Flatul.git`
 2. Install the necessary dependencies: `npm install`
 3. Build the project: `npm run build`
 4. Run the project: `npm start`
