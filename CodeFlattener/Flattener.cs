@@ -6,8 +6,23 @@ using YamlDotNet.Serialization;
 
 namespace CodeFlattener
 {
+    /// <summary>
+    /// Provides functionality to flatten a codebase into a single file while preserving metadata
+    /// and relationships between files. The flattener processes source files, collects metadata,
+    /// and generates a markdown-formatted output with YAML frontmatter.
+    /// </summary>
     public partial class Flattener
     {
+        /// <summary>
+        /// Flattens the codebase by collecting metadata, processing files, and building content.
+        /// </summary>
+        /// <param name="rootFolder">The root folder of the codebase to process.</param>
+        /// <param name="outputFile">The path where the flattened output file will be created.</param>
+        /// <param name="acceptedFileTypes">Array of file extensions or patterns to include. Empty array means accept all.</param>
+        /// <param name="ignoredPaths">Array of path patterns to exclude from processing.</param>
+        /// <param name="compress">When true, compresses the content by removing unnecessary whitespace.</param>
+        /// <returns>A task representing the asynchronous flattening operation.</returns>
+        /// <exception cref="DirectoryNotFoundException">Thrown when the root folder doesn't exist.</exception>
         public static async Task FlattenCodebaseAsync(
             string rootFolder,
             string outputFile,
@@ -85,6 +100,13 @@ namespace CodeFlattener
             await File.WriteAllTextAsync(outputFile, finalContent);
         }
 
+        /// <summary>
+        /// Filters and returns a collection of file paths based on accepted file types and ignored paths.
+        /// </summary>
+        /// <param name="rootFolder">The root folder to start the file enumeration.</param>
+        /// <param name="acceptedFileTypes">Array of file extensions or patterns to include.</param>
+        /// <param name="ignoredPaths">Array of path patterns to exclude.</param>
+        /// <returns>An enumerable collection of filtered file paths.</returns>
         private static IEnumerable<string> GetFilteredFiles(
             string rootFolder,
             string[] acceptedFileTypes,
@@ -108,6 +130,12 @@ namespace CodeFlattener
                 });
         }
 
+        /// <summary>
+        /// Matches an input string against a glob pattern.
+        /// </summary>
+        /// <param name="input">The input string to check.</param>
+        /// <param name="pattern">The glob pattern to match against.</param>
+        /// <returns>True if the input matches the pattern, false otherwise.</returns>
         private static bool MatchesPattern(string input, string pattern)
         {
             // Convert glob pattern to regex
@@ -119,6 +147,12 @@ namespace CodeFlattener
             return Regex.IsMatch(input, regex, RegexOptions.IgnoreCase);
         }
 
+        /// <summary>
+        /// Collects metadata for a specific file, including Git information if available.
+        /// </summary>
+        /// <param name="rootFolder">The root folder of the codebase.</param>
+        /// <param name="filePath">The path to the file to collect metadata for.</param>
+        /// <returns>A FileMetadata object containing the collected information.</returns>
         private static async Task<FileMetadata> CollectFileMetadataAsync(string rootFolder, string filePath)
         {
             var fileInfo = new FileInfo(filePath);
@@ -170,6 +204,12 @@ namespace CodeFlattener
             return metadata;
         }
 
+        /// <summary>
+        /// Identifies and populates related files for a given file based on directory location,
+        /// file extension, and content references.
+        /// </summary>
+        /// <param name="file">The FileMetadata object to find related files for.</param>
+        /// <param name="allFiles">Dictionary of all files in the codebase.</param>
         private static void FindRelatedFiles(FileMetadata file, Dictionary<string, FileMetadata> allFiles)
         {
             var directory = Path.GetDirectoryName(file.RelativePath);
@@ -200,6 +240,11 @@ namespace CodeFlattener
                 .ToList();
         }
 
+        /// <summary>
+        /// Compresses the content by removing unnecessary whitespace while preserving code functionality.
+        /// </summary>
+        /// <param name="content">The content to compress.</param>
+        /// <returns>The compressed content string.</returns>
         private static string CompressContent(string content)
         {
             // Remove all whitespace except for single spaces between words
@@ -213,33 +258,88 @@ namespace CodeFlattener
             return content.Trim();
         }
 
+        /// <summary>
+        /// Regular expression to match multiple whitespace characters.
+        /// </summary>
         [GeneratedRegex(@"\s+")]
         private static partial Regex ExtraSpaces();
 
+        /// <summary>
+        /// Regular expression to match spaces after opening brackets and parentheses.
+        /// </summary>
         [GeneratedRegex(@"(\(|\[|{) ")]
         private static partial Regex SpacesAfterSyntax();
 
+        /// <summary>
+        /// Regular expression to match spaces before closing brackets, parentheses, and punctuation.
+        /// </summary>
         [GeneratedRegex(@" (\)|\]|}|,|;)")]
         private static partial Regex ClosingCodeSpaces();
     }
 
+    /// <summary>
+    /// Represents metadata for a file in the codebase, including both file system and Git information.
+    /// </summary>
     public class FileMetadata
     {
+        /// <summary>
+        /// Gets or sets the file path relative to the root folder.
+        /// </summary>
         public string RelativePath { get; set; }
+
+        /// <summary>
+        /// Gets or sets the absolute file path on the system.
+        /// </summary>
         public string AbsolutePath { get; set; }
+
+        /// <summary>
+        /// Gets or sets the last modification timestamp of the file.
+        /// </summary>
         public DateTime LastModified { get; set; }
+
+        /// <summary>
+        /// Gets or sets the file size in bytes.
+        /// </summary>
         public long SizeInBytes { get; set; }
+
+        /// <summary>
+        /// Gets or sets the file extension including the dot.
+        /// </summary>
         public string FileExtension { get; set; }
 
-        // Git metadata
+        /// <summary>
+        /// Gets or sets the Git commit ID (SHA) of the last commit that modified the file.
+        /// </summary>
         public string GitCommitId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the name of the last Git author who modified the file.
+        /// </summary>
         public string GitLastAuthor { get; set; }
+
+        /// <summary>
+        /// Gets or sets the timestamp of the last Git commit that modified the file.
+        /// </summary>
         public DateTime? GitLastModified { get; set; }
+
+        /// <summary>
+        /// Gets or sets the current Git branch name.
+        /// </summary>
         public string GitBranch { get; set; }
+
+        /// <summary>
+        /// Gets or sets the Git remote repository URL.
+        /// </summary>
         public string GitRemoteUrl { get; set; }
+
+        /// <summary>
+        /// Gets or sets the list of Git contributors who have modified the file.
+        /// </summary>
         public List<string> GitContributors { get; set; } = new();
 
-        // Related files
+        /// <summary>
+        /// Gets or sets the list of related file paths based on various relationships.
+        /// </summary>
         public List<string> RelatedFiles { get; set; } = new();
     }
 }

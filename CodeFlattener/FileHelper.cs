@@ -2,6 +2,13 @@
 
 namespace CodeFlattener
 {
+    /// <summary>
+    /// Provides helper methods for working with files.
+    /// </summary>
+
+    /// <summary>
+    /// Provides helper methods for working with files.
+    /// </summary>
     public static class FileHelper
     {
         private static Dictionary<string, string> _fileExtensionToLanguageMap;
@@ -72,7 +79,23 @@ namespace CodeFlattener
             { ".adb", "ada" },
             { ".ads", "ada" }
         };
+        private static bool _isInitialized;
 
+        /// <summary>
+        /// Initializes the FileHelper with default language mappings.
+        /// </summary>
+        public static void Initialize()
+        {
+            if (_isInitialized) return;
+            _fileExtensionToLanguageMap = new Dictionary<string, string>(_defaultLanguageMap, StringComparer.OrdinalIgnoreCase);
+            _isInitialized = true;
+        }
+
+
+        /// <summary>
+        /// Initializes the file extension to language mapping.
+        /// </summary>
+        /// <param name="fileExtensionToLanguageMap">The dictionary containing the file extension to language mapping.</param>
         public static void Initialize(Dictionary<string, string> fileExtensionToLanguageMap)
         {
             _fileExtensionToLanguageMap = new Dictionary<string, string>(
@@ -81,6 +104,12 @@ namespace CodeFlattener
             );
         }
 
+        /// <summary>
+        /// Gets the language identifier for a given file path.
+        /// </summary>
+        /// <param name="filePath">The file path.</param>
+        /// <returns>The language identifier.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when FileHelper is not initialized. Call Initialize() before using this method.</exception>
         public static string GetLanguageIdentifier(string filePath)
         {
             if (_fileExtensionToLanguageMap == null)
@@ -118,6 +147,11 @@ namespace CodeFlattener
             return "plaintext";
         }
 
+        /// <summary>
+        /// Checks if a file is a text file.
+        /// </summary>
+        /// <param name="filePath">The file path.</param>
+        /// <returns>True if the file is a text file; otherwise, false.</returns>
         public static bool IsTextFile(string filePath)
         {
             try
@@ -160,18 +194,23 @@ namespace CodeFlattener
             }
         }
 
+        /// <summary>
+        /// Checks if a file has a binary file signature.
+        /// </summary>
+        /// <param name="buffer">The buffer containing the file content.</param>
+        /// <returns>True if the file has a binary file signature; otherwise, false.</returns>
         private static bool IsBinaryFileSignature(byte[] buffer)
         {
             // Check for common binary file signatures
             byte[][] signatures = {
-                new byte[] { 0x7F, 0x45, 0x4C, 0x46 }, // ELF
-                new byte[] { 0x4D, 0x5A }, // PE/DOS
-                new byte[] { 0x50, 0x4B, 0x03, 0x04 }, // ZIP
-                new byte[] { 0x25, 0x50, 0x44, 0x46 }, // PDF
-                new byte[] { 0x89, 0x50, 0x4E, 0x47 }, // PNG
-                new byte[] { 0xFF, 0xD8, 0xFF }, // JPEG
-                new byte[] { 0x47, 0x49, 0x46, 0x38 }, // GIF
-            };
+                    new byte[] { 0x7F, 0x45, 0x4C, 0x46 }, // ELF
+                    new byte[] { 0x4D, 0x5A }, // PE/DOS
+                    new byte[] { 0x50, 0x4B, 0x03, 0x04 }, // ZIP
+                    new byte[] { 0x25, 0x50, 0x44, 0x46 }, // PDF
+                    new byte[] { 0x89, 0x50, 0x4E, 0x47 }, // PNG
+                    new byte[] { 0xFF, 0xD8, 0xFF }, // JPEG
+                    new byte[] { 0x47, 0x49, 0x46, 0x38 }, // GIF
+                };
 
             foreach (var signature in signatures)
             {
@@ -185,22 +224,44 @@ namespace CodeFlattener
             return false;
         }
 
+        /// <summary>
+        /// Normalizes a file path by replacing slashes with dots.
+        /// </summary>
+        /// <param name="path">The file path.</param>
+        /// <returns>The normalized path.</returns>
         public static string NormalizePath(string path)
         {
             // Replace both forward and back slashes with dots
             return path.Replace('/', '.').Replace('\\', '.');
         }
 
+        /// <summary>
+        /// Gets the relative path from a base path to a full path.
+        /// </summary>
+        /// <param name="basePath">The base path.</param>
+        /// <param name="fullPath">The full path.</param>
+        /// <returns>The relative path.</returns>
         public static string GetRelativePath(string basePath, string fullPath)
         {
             return Path.GetRelativePath(basePath, fullPath).Replace('\\', '/');
         }
 
+        /// <summary>
+        /// Checks if a directory is a Git repository.
+        /// </summary>
+        /// <param name="path">The directory path.</param>
+        /// <returns>True if the directory is a Git repository; otherwise, false.</returns>
         public static bool IsGitRepository(string path)
         {
             return Directory.Exists(Path.Combine(path, ".git"));
         }
 
+        /// <summary>
+        /// Checks if a file path matches a filter.
+        /// </summary>
+        /// <param name="path">The file path.</param>
+        /// <param name="filter">The filter to match against.</param>
+        /// <returns>True if the file path matches the filter; otherwise, false.</returns>
         public static bool MatchesFilter(string path, string filter)
         {
             if (filter.StartsWith("*."))
