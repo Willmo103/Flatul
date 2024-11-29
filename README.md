@@ -1,4 +1,4 @@
-# FlaTÜl (Experimental Version)
+# FlaTül (Experimental Version)
 
 This project is an experimental version of the original [RepoScribe](https://github.com/your-username/RepoScribe) codebase. The code for this experimental version is based on the release version 2.2.0 of RepoScribe.
 
@@ -22,3 +22,7 @@ If you would like to contribute to this experimental version, please follow the 
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+## Statement
+
+This readme has been updated to reflect the statement above.
