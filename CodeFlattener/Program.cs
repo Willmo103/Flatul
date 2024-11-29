@@ -5,17 +5,21 @@ using System.IO;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
+using LibGit2Sharp;
+using System.Text.RegularExpressions;
+using Markdig;
+using YamlDotNet.Serialization;
 
 namespace CodeFlattener
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             try
             {
                 var config = BuildConfiguration();
-                RunCodeFlattener(args, config);
+                await RunCodeFlattenerAsync(args, config);
             }
             catch (Exception ex)
             {
@@ -24,44 +28,193 @@ namespace CodeFlattener
             }
         }
 
-        public static void RunCodeFlattener(string[] args, IConfiguration config)
+        public static async Task RunCodeFlattenerAsync(string[] args, IConfiguration config)
         {
             try
             {
-                if (args.Length < 2 || args.Length > 3)
+                var options = ParseCommandLineArguments(args);
+                if (options == null)
                 {
-                    Console.WriteLine("Usage: CodeFlattener <rootFolder> <outputFile> [-c|-Compress]");
+                    PrintUsage();
                     return;
                 }
 
-                string rootFolder = args[0];
-                string outputFile = args[1];
-                bool compress = args.Length == 3 && (args[2] == "-c" || args[2] == "-Compress");
+                string rootFolder = options.InputPath;
+                string tempFolder = null;
 
-                Console.WriteLine($"Root folder: {rootFolder}, Output file: {outputFile}, Compress: {compress}");
-
-                var allowedFiles = config.GetSection("AllowedFiles").GetChildren().ToDictionary(x => x.Key, x => x.Value);
-                var ignoredPaths = config.GetSection("Ignored").GetChildren().ToDictionary(x => x.Key, x => x.Value);
-
-                Console.WriteLine($"Accepted file types: {string.Join(", ", allowedFiles.Keys)}");
-                Console.WriteLine($"Ignored paths: {string.Join(", ", ignoredPaths.Keys)}");
-
-                if (allowedFiles.Count == 0 || ignoredPaths.Count == 0)
+                if (!string.IsNullOrEmpty(options.RepositoryUrl))
                 {
-                    Console.WriteLine("Error: Configuration sections are missing or empty.");
-                    return;
+                    Console.WriteLine($"Cloning repository: {options.RepositoryUrl}");
+                    tempFolder = await CloneRepositoryAsync(options.RepositoryUrl);
+                    rootFolder = tempFolder;
+                    Console.WriteLine($"Repository cloned to: {tempFolder}");
                 }
 
-                // Initialize the FileHelper with the allowed file types dictionary
-                FileHelper.Initialize(allowedFiles);
+                try
+                {
+                    var allowedFiles = config.GetSection("AllowedFiles").GetChildren().ToDictionary(x => x.Key, x => x.Value);
+                    var ignoredPaths = config.GetSection("Ignored").GetChildren().ToDictionary(x => x.Key, x => x.Value);
 
-                ValidateAndFlattenCodebase(rootFolder, outputFile, allowedFiles, ignoredPaths, compress);
+                    Console.WriteLine($"Original allowed files: {string.Join(", ", allowedFiles.Keys)}");
+                    Console.WriteLine($"Original ignored paths: {string.Join(", ", ignoredPaths.Keys)}");
+
+                    if (options.Filters?.Any() == true)
+                    {
+                        Console.WriteLine("Applying custom filters...");
+                        // Override existing filters with custom filters
+                        allowedFiles.Clear();
+                        ignoredPaths.Clear();
+                        foreach (var filter in options.Filters)
+                        {
+                            if (filter.StartsWith("*."))
+                            {
+                                allowedFiles.Add(filter.Substring(1), DetermineLanguageFromExtension(filter));
+                                Console.WriteLine($"Added file extension filter: {filter}");
+                            }
+                            else
+                            {
+                                ignoredPaths.Add(filter, filter);
+                                Console.WriteLine($"Added path filter: {filter}");
+                            }
+                        }
+                    }
+
+                    if (allowedFiles.Count == 0 && ignoredPaths.Count == 0)
+                    {
+                        Console.WriteLine("Warning: No filters specified. All files will be processed.");
+                    }
+
+                    FileHelper.Initialize(allowedFiles);
+                    await ValidateAndFlattenCodebaseAsync(rootFolder, options.OutputPath, allowedFiles, ignoredPaths, options.Compress);
+                }
+                finally
+                {
+                    if (tempFolder != null)
+                    {
+                        Console.WriteLine("Cleaning up temporary repository...");
+                        Directory.Delete(tempFolder, true);
+                        Console.WriteLine("Temporary repository cleaned up.");
+                    }
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"An unhandled error occurred: {ex.Message}");
+                Console.WriteLine($"An error occurred: {ex.Message}");
                 Console.WriteLine(ex.StackTrace);
             }
+        }
+
+        private static void PrintUsage()
+        {
+            Console.WriteLine(@"Usage: CodeFlattener -i <inputPath> -o <outputPath> [options]
+Options:
+  -i, --input          Input root folder path (required)
+  -o, --output         Output file path (required)
+  -c, --compress       Compress the output
+  -r, --repository     Git repository URL to clone
+  -f, --filter         Comma-separated list of filters (e.g., 'examples,*.md,README')
+
+Examples:
+  CodeFlattener -i ./src -o output.md -c
+  CodeFlattener -i ./src -o output.md -f '*.cs,*.md,examples'
+  CodeFlattener -r https://github.com/user/repo.git -o output.md -f '*.py'");
+        }
+
+        private static async Task<string> CloneRepositoryAsync(string repositoryUrl)
+        {
+            var tempPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(tempPath);
+
+            try
+            {
+                Repository.Clone(repositoryUrl, tempPath);
+                return tempPath;
+            }
+            catch (Exception ex)
+            {
+                Directory.Delete(tempPath, true);
+                throw new Exception($"Failed to clone repository: {ex.Message}", ex);
+            }
+        }
+
+        private static string DetermineLanguageFromExtension(string filter)
+        {
+            return filter.ToLower() switch
+            {
+                "*.cs" => "csharp",
+                "*.py" => "python",
+                "*.js" => "javascript",
+                "*.ts" => "typescript",
+                "*.java" => "java",
+                "*.cpp" => "cpp",
+                "*.c" => "c",
+                "*.go" => "go",
+                "*.rb" => "ruby",
+                "*.php" => "php",
+                "*.rs" => "rust",
+                "*.swift" => "swift",
+                "*.kt" => "kotlin",
+                "*.scala" => "scala",
+                "*.r" => "r",
+                "*.md" => "markdown",
+                "*.html" => "html",
+                "*.xml" => "xml",
+                "*.json" => "json",
+                "*.yaml" or "*.yml" => "yaml",
+                _ => "plaintext"
+            };
+        }
+
+        private static CommandLineOptions? ParseCommandLineArguments(string[] args)
+        {
+            var options = new CommandLineOptions();
+            for (int i = 0; i < args.Length; i++)
+            {
+                switch (args[i].ToLower())
+                {
+                    case "-i":
+                    case "--input":
+                        if (++i < args.Length) options.InputPath = args[i];
+                        break;
+                    case "-o":
+                    case "--output":
+                        if (++i < args.Length) options.OutputPath = args[i];
+                        break;
+                    case "-c":
+                    case "--compress":
+                        options.Compress = true;
+                        break;
+                    case "-r":
+                    case "--repository":
+                        if (++i < args.Length) options.RepositoryUrl = args[i];
+                        break;
+                    case "-f":
+                    case "--filter":
+                        if (++i < args.Length)
+                        {
+                            options.Filters = args[i].Split(',')
+                                .Select(f => f.Trim())
+                                .Where(f => !string.IsNullOrWhiteSpace(f))
+                                .ToList();
+                        }
+                        break;
+                }
+            }
+
+            // Validate required options
+            if (string.IsNullOrEmpty(options.InputPath) && string.IsNullOrEmpty(options.RepositoryUrl))
+            {
+                Console.WriteLine("Error: Either input path (-i) or repository URL (-r) must be specified.");
+                return null;
+            }
+
+            if (string.IsNullOrEmpty(options.OutputPath))
+            {
+                Console.WriteLine("Error: Output path (-o) is required.");
+                return null;
+            }
+
+            return options;
         }
 
         private static IConfiguration BuildConfiguration()
@@ -89,27 +242,41 @@ namespace CodeFlattener
             return possiblePaths.FirstOrDefault(File.Exists) ?? throw new FileNotFoundException("Unable to locate appsettings.json");
         }
 
-        private static void ValidateAndFlattenCodebase(string rootFolder, string outputFile, Dictionary<string, string> acceptedFileTypes, Dictionary<string, string> ignoredPaths, bool compress)
+        private static async Task ValidateAndFlattenCodebaseAsync(
+            string rootFolder,
+            string outputFile,
+            Dictionary<string, string> acceptedFileTypes,
+            Dictionary<string, string> ignoredPaths,
+            bool compress)
         {
             Console.WriteLine("Validating and flattening codebase...");
             try
             {
                 string absoluteRootFolder = Path.GetFullPath(rootFolder);
-                Console.WriteLine($"Root folder: {absoluteRootFolder}\nValidating Location...");
+                Console.WriteLine($"Root folder: {absoluteRootFolder}");
+                Console.WriteLine("Validating Location...");
 
                 ValidateDirectoryExists(absoluteRootFolder);
 
-                string absoluteOutputFile = Path.IsPathRooted(outputFile) ? outputFile : Path.Combine(Directory.GetCurrentDirectory(), outputFile);
+                string absoluteOutputFile = Path.IsPathRooted(outputFile)
+                    ? outputFile
+                    : Path.Combine(Directory.GetCurrentDirectory(), outputFile);
                 Console.WriteLine($"Output file: {absoluteOutputFile}");
 
-                Flattener flattener = new();
-                Flattener.FlattenCodebase(absoluteRootFolder, absoluteOutputFile, acceptedFileTypes.Keys.ToArray(), ignoredPaths.Keys.ToArray(), compress);
+                await Flattener.FlattenCodebaseAsync(
+                    absoluteRootFolder,
+                    absoluteOutputFile,
+                    acceptedFileTypes.Keys.ToArray(),
+                    ignoredPaths.Keys.ToArray(),
+                    compress);
 
                 Console.WriteLine($"Output written to: {absoluteOutputFile}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"An error occurred: {ex.Message} -- {ex.StackTrace}");
+                Console.WriteLine($"An error occurred: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+                throw;
             }
         }
 
@@ -121,5 +288,14 @@ namespace CodeFlattener
             }
             Console.WriteLine($"Directory exists: {path}");
         }
+    }
+
+    public class CommandLineOptions
+    {
+        public string InputPath { get; set; }
+        public string OutputPath { get; set; }
+        public bool Compress { get; set; }
+        public string RepositoryUrl { get; set; }
+        public List<string> Filters { get; set; }
     }
 }
